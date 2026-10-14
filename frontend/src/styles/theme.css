@@ -1,0 +1,329 @@
+/* =============================================================================
+   设计令牌与全局主题层
+   -----------------------------------------------------------------------------
+   这一层的目标是「一次定义，全局生效」：通过重写 Element Plus 的 CSS 变量
+   与少量全局类，让所有页面统一换肤，而不必逐个改写组件的模板或样式。
+   新增页面只要使用标准的 el-card / el-table / el-form 结构，就自动获得一致的观感。
+   ============================================================================= */
+
+:root {
+  /* ---- 品牌主色（静谧蓝，降饱和以避免默认蓝的刺眼感）---- */
+  --brand-500: #3b6fe0;
+  --brand-600: #2f59b3;
+  --brand-050: #ebf1fc;
+
+  /* ---- 侧边栏 ---- */
+  --sidebar-bg: #1e293b;
+  --sidebar-bg-hover: #293548;
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-active: #ffffff;
+  --sidebar-group: #7c8aa0;
+
+  /* ---- 中性色 ---- */
+  --c-page-bg: #f5f7fa;
+  --c-surface: #ffffff;
+  --c-text: #1f2937;
+  --c-text-2: #475569;
+  --c-text-3: #94a3b8;
+  --c-border: #e2e8f0;
+  --c-border-light: #eef2f6;
+  --c-fill: #f8fafc;
+
+  /* ---- 语义色 ---- */
+  --c-success: #22a06b;
+  --c-warning: #e8a33d;
+  --c-danger: #e5484d;
+
+  /* ---- 形状与阴影 ---- */
+  --radius-card: 10px;
+  --radius-ctl: 6px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 8px 24px rgba(16, 24, 40, 0.12);
+
+  /* =========================================================================
+     Element Plus 变量覆盖
+     变体值按 EP 自身的公式（与白色按比例混合）预先算好，避免手动调色产生偏差
+     ========================================================================= */
+  --el-color-primary: #3b6fe0;
+  --el-color-primary-light-3: #769ae9;
+  --el-color-primary-light-5: #9db7f0;
+  --el-color-primary-light-7: #c4d4f6;
+  --el-color-primary-light-8: #d8e2f9;
+  --el-color-primary-light-9: #ebf1fc;
+  --el-color-primary-dark-2: #2f59b3;
+
+  --el-color-success: #22a06b;
+  --el-color-success-light-3: #64bd97;
+  --el-color-success-light-5: #91d0b5;
+  --el-color-success-light-7: #bde3d3;
+  --el-color-success-light-8: #d3ece1;
+  --el-color-success-light-9: #e9f6f0;
+  --el-color-success-dark-2: #1b8056;
+
+  --el-color-warning: #e8a33d;
+  --el-color-warning-light-3: #efbf77;
+  --el-color-warning-light-5: #f4d19e;
+  --el-color-warning-light-7: #f8e3c5;
+  --el-color-warning-light-8: #faedd8;
+  --el-color-warning-light-9: #fdf6ec;
+  --el-color-warning-dark-2: #ba8231;
+
+  --el-color-danger: #e5484d;
+  --el-color-danger-light-3: #ed7f82;
+  --el-color-danger-light-5: #f2a4a6;
+  --el-color-danger-light-7: #f7c8ca;
+  --el-color-danger-light-8: #fadadb;
+  --el-color-danger-light-9: #fcedee;
+  --el-color-danger-dark-2: #b73a3e;
+  --el-color-error: #e5484d;
+  --el-color-error-light-3: #ed7f82;
+  --el-color-error-light-5: #f2a4a6;
+  --el-color-error-light-7: #f7c8ca;
+  --el-color-error-light-8: #fadadb;
+  --el-color-error-light-9: #fcedee;
+  --el-color-error-dark-2: #b73a3e;
+
+  --el-color-info: #6b7280;
+  --el-color-info-light-9: #f3f4f6;
+  --el-color-info-dark-2: #4b5563;
+
+  --el-text-color-primary: #1f2937;
+  --el-text-color-regular: #475569;
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #b6c2d1;
+
+  --el-border-color: #e2e8f0;
+  --el-border-color-light: #eef2f6;
+  --el-border-color-lighter: #f1f5f9;
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color-light: #f8fafc;
+
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+
+  --el-font-size-base: 14px;
+}
+
+/* =============================================================================
+   全局排版
+   ============================================================================= */
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  background-color: var(--c-page-bg);
+  color: var(--c-text);
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d3dae3;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b9c3d0;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* =============================================================================
+   卡片：去掉生硬的边框，改用极轻的投影分层
+   ============================================================================= */
+
+.el-card {
+  border: none;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.el-card__header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--c-border-light);
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.el-card__body {
+  padding: 20px;
+}
+
+/* 页面内多卡片堆叠时的统一间距 */
+.el-card + .el-card {
+  margin-top: 16px;
+}
+
+/* =============================================================================
+   表格：浅色表头 + 克制的分隔线，提升可读性
+   ============================================================================= */
+
+.el-table {
+  --el-table-border-color: var(--c-border-light);
+  --el-table-header-bg-color: var(--c-fill);
+  --el-table-row-hover-bg-color: #f7f9fc;
+}
+
+.el-table th.el-table__cell {
+  background-color: var(--c-fill) !important;
+  color: var(--c-text-2);
+  font-weight: 600;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background-color: #fcfdfe;
+}
+
+.el-table .el-table__cell {
+  padding: 10px 0;
+}
+
+.el-table__empty-text {
+  color: var(--c-text-3);
+}
+
+/* =============================================================================
+   表单与控件
+   ============================================================================= */
+
+.el-button {
+  border-radius: var(--radius-ctl);
+  font-weight: 500;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: var(--radius-ctl);
+}
+
+/* 行内搜索表单：统一底边距，避免各页面各写一套 */
+.el-form--inline {
+  margin-bottom: 4px;
+}
+
+.el-form--inline .el-form-item {
+  margin-right: 16px;
+  margin-bottom: 12px;
+}
+
+.el-form-item__label {
+  color: var(--c-text-2);
+  font-weight: 500;
+}
+
+/* =============================================================================
+   弹窗、轻提示、分页
+   ============================================================================= */
+
+.el-dialog,
+.el-message-box {
+  border-radius: 12px;
+}
+
+.el-dialog__header {
+  margin-right: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--c-border-light);
+  font-weight: 600;
+}
+
+.el-dialog__footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--c-border-light);
+}
+
+.el-message {
+  border-radius: var(--radius-ctl);
+}
+
+.el-alert {
+  border-radius: var(--radius-ctl);
+}
+
+.el-tag {
+  border-radius: 4px;
+}
+
+.el-pagination {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* =============================================================================
+   通用工具类（新页面直接复用，避免重复写 scoped 样式）
+   ============================================================================= */
+
+/* 页面标题栏：左标题 + 右操作 */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-head__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.page-head__desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--c-text-3);
+}
+
+/* 卡片头部：左标题 + 右侧标签 */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 工具栏：左侧筛选条件自适应换行，右侧主操作按钮固定靠右。
+   比把「新增」按钮塞进筛选表单更稳：窄屏下按钮不会跟着一起换行错位。 */
+.toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.toolbar__filters {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toolbar__actions {
+  flex: 0 0 auto;
+  padding-top: 1px;
+}
+
+/* 表格中的次要文字 */
+.text-muted {
+  color: var(--c-text-3);
+  font-size: 12px;
+}
+
+/* 表格中的主副两行 */
+.cell-main {
+  color: var(--c-text);
+}
+
+.cell-sub {
+  color: var(--c-text-3);
+  font-size: 12px;
+  margin-top: 2px;
+}

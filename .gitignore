@@ -1,0 +1,28 @@
+# ---- Java / Maven ----
+backend/target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+backend/src/main/resources/application.yml
+
+# ---- Node / Vite ----
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+
+# ---- 本地配置（含数据库密码，不要提交）----
+*.local
+application-local.yml
