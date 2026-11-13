@@ -1,3 +1,5 @@
+[English Version](README.en.md) · 中文版
+
 # 高校选课管理系统
 
 > 课程设计原型 · 全栈实现
