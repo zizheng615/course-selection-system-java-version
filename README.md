@@ -259,7 +259,7 @@ mvn test -Dtest=EnrollmentConcurrencyTest
 
 ### 接口回归脚本
 
-`scripts/verify-api.ps1` 覆盖 **38 项** 端到端断言：JWT 签发与拦截、角色越权、
+`scripts/verify-api.ps1` 覆盖 **42 项** 端到端断言：JWT 签发与拦截、角色越权、
 CRUD、选课/退课闭环、时间冲突、排课冲突、引用完整性、统计查询。
 
 ```powershell

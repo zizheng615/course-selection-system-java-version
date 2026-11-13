@@ -15,16 +15,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cd backend
 JAVA_HOME=D:\JDK17 DB_PASSWORD=<密码> mvn -B spring-boot:run
 mvn -B compile
+# Swagger UI: http://localhost:8080/swagger-ui.html
 
-# 并发测试（自建临时课程，跑完自清理，不污染演示数据）
+# 并发测试（自建临时课程，跑完自清理，不污染演示数据；需先灌 02_seed_data.sql）
 mvn -B test -Dtest=EnrollmentConcurrencyTest
-# 跳过需要数据库的测试
+# 单个测试方法
+mvn -B test -Dtest=EnrollmentConcurrencyTest#shouldNotOversellUnderConcurrency
+# 不依赖数据库的测试（ClaudeProviderTest：AI 提供方开关逻辑）
+mvn -B test -Dtest=ClaudeProviderTest
+# 跳过需要数据库的测试（当前即只跑 ClaudeProviderTest）
 mvn -B test -Dtest='!EnrollmentConcurrencyTest'
 
 # ---- 前端（端口 5173，dev 下将 /api 代理到 8080）----
 cd frontend
 npm run dev
-npm run build
+npm run build        # 前端没有 lint / test 脚本，构建是唯一校验
 # 若报 "operation was rejected by your operating system"，是全局 npm 缓存目录不可写：
 npm install --cache ./.npm-cache
 
@@ -33,13 +38,14 @@ mysql -u root -p < sql/01_schema.sql
 mysql -u root -p course_selection < sql/02_seed_data.sql
 mysql -u root -p course_selection < sql/03_queries.sql   # 8 条演示查询 + EXPLAIN 对比
 
-# ---- 接口回归（需后端已在 8080 启动；两个脚本都会自清理，可反复跑）----
+# ---- 接口回归（需后端已在 8080 启动；三个脚本都会自清理，可反复跑）----
 powershell -ExecutionPolicy Bypass -File scripts/verify-api.ps1     # 42 项：认证/权限/CRUD/选课闭环/冲突/统计
 powershell -ExecutionPolicy Bypass -File scripts/verify-admin.ps1   # 56 项：账号管理/选课记录管理
 powershell -ExecutionPolicy Bypass -File scripts/verify-ai.ps1      # 50 项：AI 问答、角色隔离、推荐问题自洽
 ```
 
-数据库密码通过环境变量 `DB_PASSWORD` 注入，`application.yml` 里保留的是占位符。
+数据库密码通过环境变量 `DB_PASSWORD` 注入（用户名可用 `DB_USERNAME` 覆盖），`application.yml` 里保留的是占位符。
+⚠️ 该文件被 `.gitignore` 忽略且**未提交到仓库**，新克隆的环境里根本不存在，必须自行创建，否则后端启动失败。
 演示账号 `admin` / `stu001` / `tea001`，密码均为 `123456`。
 
 ## 架构
@@ -48,10 +54,11 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-ai.ps1      # 50 项：A
 
 `Controller → Service → Repository`，事务边界**只在 Service 层**。
 
-- `common/` — `Result<T>` 统一响应体、`ErrorCode` 分段错误码、`@RestControllerAdvice` 全局异常
+- `common/` — `Result<T>` 统一响应体、`ErrorCode` 分段错误码（1xxx 认证 / 2xxx 参数 / 3xxx 资源不存在 / 4xxx 业务拒绝 / 5xxx 系统）、`@RestControllerAdvice` 全局异常
 - `security/` — JWT 签发解析、拦截器、`UserContext`(ThreadLocal)、`@RequireRole`
 - `repository/` — 6 个实体仓储 + `StatsRepository`（只承载统计查询，不继承 `JpaRepository`）
 - `support/SqlUtils` — 原生查询 `Object[]` 的类型转换
+- `service/SemesterResolver` — 前端未传学期时取库中最新学期（无课程时兜底 `2026-2027-1`），课程与选课查询共用
 
 **实体不使用 JPA 关联**。外键一律映射为普通 `Long` 列，所有多表查询走原生 SQL。
 这是有意选择：彻底避开 `open-in-view=false` 下的懒加载异常，也让统计查询语义更直白。
@@ -64,6 +71,9 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-ai.ps1      # 50 项：A
 JWT 里携带业务主键 `refId`（学生为 `student.id`，教师为 `teacher.id`），
 所以 Service 拿学生身份不必再查库：`UserContext.requireStudentId()`。
 放行路径在 `WebMvcConfig#addInterceptors` 中维护。
+
+项目**没有启用完整 Spring Security 过滤器链**，只引入 `spring-security-crypto` 做 BCrypt；
+认证鉴权全部由 `JwtInterceptor` 完成，不要去找 `SecurityFilterChain`。
 
 ### 并发选课（本项目的核心，改动前务必理解）
 
@@ -104,6 +114,9 @@ UPDATE course SET enrolled_count = enrolled_count + 1
 `spring.jpa.hibernate.ddl-auto: validate` —— **表结构由 `sql/01_schema.sql` 决定，
 实体只做校验**。这是刻意的：数据库设计是主动产出，而非 JPA 自动生成的产物。
 因此任何实体改动都必须同步改 DDL，否则启动即失败。
+
+`01_schema.sql` 另建了 `v_course_detail` / `v_student_credit` 两个视图，只服务于
+`03_queries.sql` 的演示查询；Java 代码没有引用它们（课程列表走内联原生 SQL），改视图不会影响接口。
 
 由此产生几处不能随手改的写法：
 
@@ -159,7 +172,7 @@ EP 的 light-3/5/7/8/9 变体值是按官方混色公式预计算的，改主色
 | 顺序 | 提供方 | 可用条件 | 定位 |
 |---|---|---|---|
 | 1 | `KnowledgeBaseProvider` | 始终 | 答案与系统实际行为逐条核对过，属于确定信息 |
-| 2 | `ClaudeProvider` | 配置了 `ai.claude.api-key` | 知识库没命中时才兜底 |
+| 2 | `ClaudeProvider` | `enabled=true` 且 `api-key` 非空 | 知识库没命中时才兜底 |
 
 **为什么知识库排前面**：模型会泛泛而谈甚至编造不存在的菜单。能用确定答案就不用生成式答案。
 改动顺序前先想清楚这一点。
@@ -171,6 +184,12 @@ EP 的 light-3/5/7/8/9 变体值是按官方混色公式预计算的，改主色
 
 **兜底话术里不要举具体菜单例子**：不同角色能看到的菜单不同，
 举「课程管理」会把学生和教师引到他们根本没有的页面上。兜底只给角色相关的推荐问题。
+
+**系统提示词也要同步**：`ClaudeProvider#buildSystemPrompt` 里同样列了角色与菜单分组。
+改前端菜单或功能后，除了 `KnowledgeBase.java`，这段提示词也要一起更新，否则模型会按旧菜单作答。
+
+`ClaudeProviderTest` 只验证 `isAvailable()` 的开关判定，不发起真实请求，
+因此无 Key、断网时也能通过；SDK 调用的字段正确性由编译期保证。
 
 `ClaudeProvider` 的任何异常都必须捕获并返回 `Optional.empty()` 以降级，
 不能把异常抛给用户 —— 外部依赖不可用时，AI 功能整体仍要能用（退化为知识库）。
@@ -190,6 +209,8 @@ EP 的 light-3/5/7/8/9 变体值是按官方混色公式预计算的，改主色
 
 - 提交前确认没把演示数据跑脏。跑完测试/手测可重跑 `sql/02_seed_data.sql` 恢复，
   它会先按外键反序 `DELETE` 再灌数据（只影响本系统这 6 张表）。
+- `EnrollmentConcurrencyTest` 假定学生 ID 1–50 已存在（线程按 `1 + i % 50` 取学生），
+  所以必须先执行 `02_seed_data.sql`；它只清理自己临时创建的课程与选课记录。
 - 删除有选课记录的学生/课程会被拒（外键 RESTRICT），
   且**已退课的历史记录同样计入** —— 这是有意保留修读记录的。
 - `scripts/*.ps1` 含中文。Windows PowerShell 5.1 按 GBK 读无 BOM 的 `.ps1`
@@ -206,7 +227,8 @@ EP 的 light-3/5/7/8/9 变体值是按官方混色公式预计算的，改主色
   `scrollWidth - clientWidth`，确认没有横向溢出把右侧列挤出可视区。
 - **AI 抽屉宽度有两处定义**：`AiAssistant.vue` 的 `DRAWER_WIDTH` 与
   `MainLayout.vue` 的 `AI_DRAWER_WIDTH`。抽屉是靠主界面加 `margin-right` 让位的，
-  两个值不一致会出现缝隙或重叠。
+  两个值不一致会出现缝隙或重叠。视口宽度 < 1200px（`AI_OVERLAY_BREAKPOINT`）时
+  改为覆盖主界面，不再做 400px 让位。
 - `add_student_or_teacher` 等知识库条目的答案涉及具体菜单路径，
   **改动了前端菜单名或页面结构后要同步更新 `KnowledgeBase.java`**，否则 AI 会把用户指错地方。
 - 回归脚本里的精确计数断言（如「选课记录总数回到种子状态(218)」）是有意保持严格的 ——
